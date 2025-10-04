@@ -1,377 +1,40 @@
-"""
-VIDEO TO TEXT CONVERTER
-Extracts audio from MP4 video and converts speech to text
-
-Installation:
-pip install openai-whisper moviepy pydub
-
-For ffmpeg (required):
-- Windows: Download from https://ffmpeg.org/download.html
-- Mac: brew install ffmpeg
-- Linux: sudo apt-get install ffmpeg
-"""
-
+from moviepy.editor import VideoFileClip
+import speech_recognition as sr
 import os
-import sys
-from pathlib import Path
 
-try:
-    import whisper
-    WHISPER_AVAILABLE = True
-except ImportError:
-    print("❌ Whisper not installed. Install: pip install openai-whisper")
-    WHISPER_AVAILABLE = False
-
-try:
-    from moviepy.editor import VideoFileClip
-    MOVIEPY_AVAILABLE = True
-except ImportError:
-    print("❌ MoviePy not installed. Install: pip install moviepy")
-    MOVIEPY_AVAILABLE = False
-
-
-class VideoToTextConverter:
-    """Convert video files to text using speech recognition"""
+def video_to_text(video_path, output_txt_path=None):
+    if output_txt_path is None:
+        output_txt_path = os.path.splitext(video_path)[0] + ".txt"
     
-    def __init__(self, model_size="base"):
-        """
-        Initialize converter
-        
-        Args:
-            model_size: Whisper model size
-                - "tiny": Fastest, least accurate (~1GB RAM)
-                - "base": Fast, good accuracy (~1GB RAM)
-                - "small": Balanced (~2GB RAM)
-                - "medium": Better accuracy (~5GB RAM)
-                - "large": Best accuracy, slowest (~10GB RAM)
-        """
-        print("🔧 Initializing Video to Text Converter...")
-        
-        if not WHISPER_AVAILABLE:
-            raise ImportError("Whisper is required. Install: pip install openai-whisper")
-        
-        if not MOVIEPY_AVAILABLE:
-            raise ImportError("MoviePy is required. Install: pip install moviepy")
-        
-        print(f"   Loading Whisper model ({model_size})...")
-        self.model = whisper.load_model(model_size)
-        print("✅ Converter ready!\n")
+    audio_path = os.path.splitext(video_path)[0] + ".wav"
     
-    def extract_audio(self, video_path: str, audio_output_path: str = None) -> str:
-        """
-        Extract audio from video file
+    try:
+        print("Extracting audio from video...")
+        video = VideoFileClip(video_path)
+        video.audio.write_audiofile(audio_path, codec='pcm_s16le')
+        video.close()
         
-        Args:
-            video_path: Path to input video file
-            audio_output_path: Path for output audio file (optional)
-            
-        Returns:
-            Path to extracted audio file
-        """
-        if not os.path.exists(video_path):
-            raise FileNotFoundError(f"Video file not found: {video_path}")
+        print("Transcribing audio to text...")
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(audio_path) as source:
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            audio_data = recognizer.record(source)
+        text = recognizer.recognize_google(audio_data)
         
-        print(f"🎬 Extracting audio from: {video_path}")
+        with open(output_txt_path, "w", encoding="utf-8") as f:
+            f.write(text)
         
-        # Generate output path if not provided
-        if audio_output_path is None:
-            video_name = Path(video_path).stem
-            audio_output_path = f"{video_name}_audio.wav"
-        
-        try:
-            # Load video and extract audio
-            video = VideoFileClip(video_path)
-            audio = video.audio
-            
-            if audio is None:
-                raise ValueError("Video has no audio track")
-            
-            # Write audio to file
-            audio.write_audiofile(audio_output_path, verbose=False, logger=None)
-            
-            # Clean up
-            video.close()
-            audio.close()
-            
-            print(f"✅ Audio extracted to: {audio_output_path}\n")
-            return audio_output_path
-            
-        except Exception as e:
-            raise Exception(f"Error extracting audio: {str(e)}")
+        print(f"✅ Transcription saved to {output_txt_path}")
+        return text
     
-    def transcribe_audio(self, audio_path: str, language=None) -> dict:
-        """
-        Transcribe audio to text
-        
-        Args:
-            audio_path: Path to audio file
-            language: Language code (e.g., 'en', 'es', 'fr'). Auto-detect if None
-            
-        Returns:
-            Dictionary with transcription results
-        """
-        if not os.path.exists(audio_path):
-            raise FileNotFoundError(f"Audio file not found: {audio_path}")
-        
-        print(f"🎤 Transcribing audio: {audio_path}")
-        
-        # Transcribe with Whisper
-        if language:
-            result = self.model.transcribe(audio_path, language=language)
-        else:
-            result = self.model.transcribe(audio_path)
-        
-        print("✅ Transcription complete!\n")
-        
-        return result
-    
-    def convert_video_to_text(self, video_path: str, 
-                             output_txt_path: str = None,
-                             language=None,
-                             keep_audio=False) -> dict:
-        """
-        Complete conversion: video -> audio -> text
-        
-        Args:
-            video_path: Path to input video file
-            output_txt_path: Path for output text file (optional)
-            language: Language code for transcription (optional)
-            keep_audio: Keep extracted audio file (default: False)
-            
-        Returns:
-            Dictionary with transcription results
-        """
-        print(f"\n{'='*70}")
-        print(f"🎥 CONVERTING VIDEO TO TEXT")
-        print(f"{'='*70}\n")
-        
-        # Step 1: Extract audio
-        audio_path = self.extract_audio(video_path)
-        
-        # Step 2: Transcribe audio
-        result = self.transcribe_audio(audio_path, language)
-        
-        # Step 3: Save to text file
-        if output_txt_path is None:
-            video_name = Path(video_path).stem
-            output_txt_path = f"{video_name}_transcript.txt"
-        
-        with open(output_txt_path, 'w', encoding='utf-8') as f:
-            f.write(result['text'])
-        
-        print(f"💾 Transcript saved to: {output_txt_path}")
-        
-        # Clean up audio file if not needed
-        if not keep_audio and os.path.exists(audio_path):
-            os.remove(audio_path)
-            print(f"🗑️  Temporary audio file removed")
-        
-        # Display results
-        self._display_results(result, output_txt_path)
-        
-        return result
-    
-    def convert_with_timestamps(self, video_path: str, 
-                               output_txt_path: str = None) -> dict:
-        """
-        Convert video to text with timestamps for each segment
-        
-        Args:
-            video_path: Path to input video file
-            output_txt_path: Path for output text file (optional)
-            
-        Returns:
-            Dictionary with transcription results
-        """
-        print(f"\n{'='*70}")
-        print(f"🎥 CONVERTING VIDEO TO TEXT (WITH TIMESTAMPS)")
-        print(f"{'='*70}\n")
-        
-        # Extract audio
-        audio_path = self.extract_audio(video_path)
-        
-        # Transcribe
-        result = self.transcribe_audio(audio_path)
-        
-        # Generate output path
-        if output_txt_path is None:
-            video_name = Path(video_path).stem
-            output_txt_path = f"{video_name}_transcript_timestamped.txt"
-        
-        # Write with timestamps
-        with open(output_txt_path, 'w', encoding='utf-8') as f:
-            for segment in result['segments']:
-                start_time = self._format_timestamp(segment['start'])
-                end_time = self._format_timestamp(segment['end'])
-                text = segment['text'].strip()
-                f.write(f"[{start_time} -> {end_time}] {text}\n")
-        
-        print(f"💾 Timestamped transcript saved to: {output_txt_path}")
-        
-        # Clean up
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return None
+    finally:
         if os.path.exists(audio_path):
             os.remove(audio_path)
-        
-        self._display_results(result, output_txt_path)
-        
-        return result
-    
-    def _format_timestamp(self, seconds: float) -> str:
-        """Convert seconds to HH:MM:SS format"""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-    
-    def _display_results(self, result: dict, output_path: str):
-        """Display transcription results"""
-        print(f"\n{'='*70}")
-        print("📊 TRANSCRIPTION RESULTS")
-        print(f"{'='*70}\n")
-        
-        print(f"📝 Full Text:")
-        print(f"{result['text'][:500]}{'...' if len(result['text']) > 500 else ''}\n")
-        
-        print(f"📊 Statistics:")
-        print(f"   Language Detected: {result.get('language', 'N/A')}")
-        print(f"   Total Segments: {len(result.get('segments', []))}")
-        print(f"   Word Count: {len(result['text'].split())}")
-        print(f"   Character Count: {len(result['text'])}")
-        
-        print(f"\n💾 Output File: {output_path}")
-        print(f"{'='*70}\n")
 
-
-# ============================================================================
-# USAGE EXAMPLES
-# ============================================================================
-
-def main():
-    """Example usage"""
-    
-    print("\n" + "🎯"*35)
-    print("     VIDEO TO TEXT CONVERTER")
-    print("     Speech Recognition from MP4")
-    print("🎯"*35 + "\n")
-    
-    if not WHISPER_AVAILABLE or not MOVIEPY_AVAILABLE:
-        print("❌ Required libraries not installed!")
-        print("\nInstall with:")
-        print("   pip install openai-whisper moviepy")
-        return
-    
-    # Initialize converter
-    # Models: "tiny", "base", "small", "medium", "large"
-    converter = VideoToTextConverter(model_size="base")
-    
-    # ========================================================================
-    # 👉 OPTION 1: SIMPLE CONVERSION (NO TIMESTAMPS) 👈
-    # ========================================================================
-    
-    # Replace with your video file path
-    video_file = "your_video.mp4"
-    
-    # Check if example file exists
-    if not os.path.exists(video_file):
-        print(f"⚠️  Example video not found: {video_file}")
-        print("\n📝 To use this converter:")
-        print("   1. Replace 'your_video.mp4' with your actual video path")
-        print("   2. Run the script again")
-        print("\nExample:")
-        print('   video_file = "C:/Videos/presentation.mp4"')
-        print('   result = converter.convert_video_to_text(video_file)')
-        return
-    
-    # Simple conversion
-    print("\n🔹 SIMPLE CONVERSION:")
-    result = converter.convert_video_to_text(
-        video_path=video_file,
-        output_txt_path="output_transcript.txt",
-        language=None,  # Auto-detect language (or use 'en', 'es', 'fr', etc.)
-        keep_audio=False  # Delete temporary audio file
-    )
-    
-    # ========================================================================
-    # 👉 OPTION 2: CONVERSION WITH TIMESTAMPS 👈
-    # ========================================================================
-    
-    print("\n\n🔹 CONVERSION WITH TIMESTAMPS:")
-    result_with_timestamps = converter.convert_with_timestamps(
-        video_path=video_file,
-        output_txt_path="output_transcript_timestamped.txt"
-    )
-    
-    # ========================================================================
-    # 👉 OPTION 3: MANUAL STEP-BY-STEP 👈
-    # ========================================================================
-    
-    print("\n\n🔹 MANUAL STEP-BY-STEP:")
-    
-    # Step 1: Extract audio only
-    audio_file = converter.extract_audio(video_file, "extracted_audio.wav")
-    
-    # Step 2: Transcribe audio
-    transcription = converter.transcribe_audio(audio_file, language='en')
-    
-    # Step 3: Save manually
-    with open("manual_transcript.txt", 'w', encoding='utf-8') as f:
-        f.write(transcription['text'])
-    
-    print("✅ Manual transcription complete!")
-
-
-# ============================================================================
-# COMMAND LINE INTERFACE
-# ============================================================================
-
-def cli():
-    """Command line interface"""
-    if len(sys.argv) < 2:
-        print("Usage: python video_to_text.py <video_file.mp4> [options]")
-        print("\nOptions:")
-        print("  --model <size>     Model size: tiny, base, small, medium, large")
-        print("  --language <code>  Language code: en, es, fr, etc.")
-        print("  --timestamps       Include timestamps in output")
-        print("  --output <file>    Output text file path")
-        print("\nExample:")
-        print("  python video_to_text.py video.mp4 --model base --timestamps")
-        return
-    
-    video_path = sys.argv[1]
-    
-    # Parse arguments
-    model_size = "base"
-    language = None
-    timestamps = False
-    output_path = None
-    
-    i = 2
-    while i < len(sys.argv):
-        if sys.argv[i] == "--model" and i + 1 < len(sys.argv):
-            model_size = sys.argv[i + 1]
-            i += 2
-        elif sys.argv[i] == "--language" and i + 1 < len(sys.argv):
-            language = sys.argv[i + 1]
-            i += 2
-        elif sys.argv[i] == "--timestamps":
-            timestamps = True
-            i += 1
-        elif sys.argv[i] == "--output" and i + 1 < len(sys.argv):
-            output_path = sys.argv[i + 1]
-            i += 2
-        else:
-            i += 1
-    
-    # Convert video
-    converter = VideoToTextConverter(model_size=model_size)
-    
-    if timestamps:
-        converter.convert_with_timestamps(video_path, output_path)
-    else:
-        converter.convert_video_to_text(video_path, output_path, language)
-
-
+# Example
 if __name__ == "__main__":
-    # Uncomment one of these:
-    main()  # Run examples
-    # cli()  # Run as command line tool
+    video_file = "video.mp4"
+    print(video_to_text(video_file))
