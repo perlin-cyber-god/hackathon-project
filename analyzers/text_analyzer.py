@@ -1,42 +1,47 @@
 # analyzers/text_analyzer.py
-import language_tool_python
 from transformers import pipeline
+import torch
 
-# Initialize models once to save time. This might take a moment the first time.
 print("Loading text analysis models...")
+# Initialize sentiment analyzer as before
 sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
-grammar_tool = language_tool_python.LanguageTool('en-US')
+
+# Initialize a grammar correction pipeline directly from Hugging Face
+# This will download the model on the first run.
+grammar_corrector = pipeline('text2text-generation', model='vennify/t5-base-grammar-correction')
 print("✅ Text models loaded.")
+
 
 def analyze_text_quality(text):
     """Analyzes text for sentiment and grammar to produce a presentation quality score."""
-    # 1. Sentiment Analysis
-    # Truncate text to 512 tokens to fit the model's input limit
+    # 1. Sentiment Analysis (same as before)
     sentiment_result = sentiment_analyzer(text[:512])[0] 
     sentiment_score = sentiment_result['score']
     
-    # Normalize sentiment to a 0-100 scale. Positive is good, negative is bad.
     if sentiment_result['label'] == 'POSITIVE':
         presentation_sentiment_score = 50 + (sentiment_score * 50)
     else:
         presentation_sentiment_score = 50 - (sentiment_score * 50)
 
-    # 2. Grammar and Clarity Analysis
-    matches = grammar_tool.check(text)
-    num_errors = len(matches)
+    # 2. Grammar and Clarity Analysis using the Hugging Face model
+    corrected_results = grammar_corrector(text, max_length=256)
+    corrected_text = corrected_results[0]['generated_text']
     
-    # Score based on errors per 100 words. Fewer errors = higher score.
-    word_count = len(text.split())
-    errors_per_100_words = (num_errors / word_count) * 100 if word_count > 0 else 0
-    # Penalize 10 points for each error per 100 words
-    grammar_clarity_score = max(0, 100 - (errors_per_100_words * 10)) 
+    # A simple way to count errors is to see how many words are different
+    # We compare the sets of words to see what was added or removed.
+    original_words = set(text.lower().split())
+    corrected_words = set(corrected_text.lower().split())
+    num_errors = len(original_words.symmetric_difference(corrected_words))
+
+    # Score based on the number of corrections. Fewer corrections = higher score.
+    grammar_clarity_score = max(0, 100 - (num_errors * 5)) # Penalize 5 points per error
 
     # Average the two scores for the final presentation quality score
     final_score = (presentation_sentiment_score + grammar_clarity_score) / 2
     
     evidence = (
         f"Sentiment: {sentiment_result['label']} ({presentation_sentiment_score:.1f}/100). "
-        f"Grammar: Found {num_errors} potential errors. ({grammar_clarity_score:.1f}/100)."
+        f"Grammar: Found and corrected approximately {num_errors} errors. ({grammar_clarity_score:.1f}/100)."
     )
     
     return final_score, evidence
