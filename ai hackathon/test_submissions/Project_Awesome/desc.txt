@@ -1,0 +1,1 @@
+Project Awesome is an innovative AI solution using Python and Flask to solve world hunger.

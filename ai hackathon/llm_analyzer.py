@@ -25,10 +25,17 @@ def analyze_with_gemini(project_description: str) -> Tuple[dict, dict]:
         default_score = {'score': 0, 'reasoning': 'API key is not configured or is invalid.'}
         return default_score, default_score
 
+    # --- THIS IS THE NEW, MORE CRITICAL PROMPT ---
     prompt = f"""
-    You are an expert hackathon judge. Analyze the following project description.
+    You are a strict, critical, and experienced hackathon judge. Your task is to analyze the following project description and provide a score from 0 to 100 for "impact" and "feasibility".
+
+    - Be very critical. A simple or common idea should receive a low score (20-40).
+    - A good, solid idea should be in the 50-75 range.
+    - Only truly innovative, groundbreaking, and well-explained ideas should score above 80.
+    - If an idea is technically impossible or makes absurd claims (e.g., "quantum blockchain on a raspberry pi"), give it a feasibility score below 10.
+
     Provide your output ONLY in a valid JSON format with two main keys: "impact" and "feasibility".
-    For each key, provide a "score" (an integer from 0 to 100) and a brief "reasoning" (a string of no more than 20 words).
+    For each key, provide a "score" (an integer from 0 to 100) and a brief "reasoning" (a string of no more than 25 words).
     
     Project Description: "{project_description}"
     
@@ -49,20 +56,31 @@ def analyze_with_gemini(project_description: str) -> Tuple[dict, dict]:
         print(f"Error during API call or JSON parsing: {e}")
         error_score = {'score': 0, 'reasoning': f"An error occurred: {e}"}
         return error_score, error_score
+# Add this new function to llm_analyzer.py
 
-# This block allows you to test the file directly
-if __name__ == '__main__':
-    print("\n--- Running a quick test on the API analyzer ---")
-    
-    if API_KEY == "YOUR_API_KEY_HERE":
-        print("\n❌ ERROR: Please replace 'YOUR_API_KEY_HERE' with your actual Gemini API key.")
-    else:
-        sample_desc = "Our project is 'HealthChain', a decentralized platform using blockchain to secure patient medical records, making them instantly accessible to doctors worldwide while giving patients full control over their data."
-        
-        impact, feasibility = analyze_with_gemini(sample_desc)
-        
-        print(f"\nImpact Score: {impact.get('score', 'N/A')}/100")
-        print(f"Reasoning: {impact.get('reasoning', 'N/A')}")
-        
-        print(f"\nTechnical Feasibility Score: {feasibility.get('score', 'N/A')}/100")
-        print(f"Reasoning: {feasibility.get('reasoning', 'N/A')}")
+def extract_claims_with_gemini(text: str) -> list:
+    """
+    Uses the Gemini API to extract a list of verifiable technical claims from text.
+    """
+    if not model or not text.strip():
+        return []
+
+    prompt = f"""
+    Analyze the following project description. Your task is to extract all specific, verifiable technical claims about the implementation.
+    - Examples of claims: "uses python", "built a flask api", "uses pytorch", "has a react frontend", "stores data in postgresql".
+    - Do not extract subjective claims like "it's fast" or "it's innovative".
+    - Return your output ONLY as a valid JSON list of strings. For example: ["uses python", "uses react", "uses postgresql"].
+    - If no verifiable claims are made, return an empty list: [].
+
+    Project Description: "{text}"
+
+    JSON Output:
+    """
+    try:
+        response = model.generate_content(prompt)
+        json_response_str = response.text.strip().replace("```json", "").replace("```", "")
+        claims = json.loads(json_response_str)
+        return claims
+    except Exception as e:
+        print(f"Error during claim extraction: {e}")
+        return []

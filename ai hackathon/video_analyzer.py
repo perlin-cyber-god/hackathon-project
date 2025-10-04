@@ -1,49 +1,40 @@
-# video_analyzer.py
+from moviepy.editor import VideoFileClip
+import speech_recognition as sr
 import os
-import whisper
-from typing import Tuple # <--- CHANGE 1: Import Tuple
 
-def transcribe_video(video_path: str) -> Tuple[str, str]: # <--- CHANGE 2: Update the return type hint
-    """
-    Transcribes the audio from a video file using OpenAI's Whisper model.
-
-    Args:
-        video_path (str): The path to the video file.
-
-    Returns:
-        A tuple containing the transcript text and an evidence string.
-        Returns (None, error_message) if the transcription fails.
-    """
-    if not os.path.exists(video_path):
-        # Return None for the first element to indicate failure
-        return None, f"Error: Video file not found at '{video_path}'"
+def video_to_text(video_path, output_txt_path=None):
+    if output_txt_path is None:
+        output_txt_path = os.path.splitext(video_path)[0] + ".txt"
+    
+    audio_path = os.path.splitext(video_path)[0] + ".wav"
     
     try:
-        print("Loading Whisper model (tiny.en)... This may download the model on first run.")
-        model = whisper.load_model("tiny.en")
+        print("Extracting audio from video...")
+        video = VideoFileClip(video_path)
+        video.audio.write_audiofile(audio_path, codec='pcm_s16le')
+        video.close()
         
-        print(f"Starting transcription for {video_path}... This may take a few moments.")
-        # Set fp16=False if you are running on a CPU
-        result = model.transcribe(video_path, fp16=False) 
+        print("Transcribing audio to text...")
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(audio_path) as source:
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            audio_data = recognizer.record(source)
+        text = recognizer.recognize_google(audio_data)
         
-        transcript = result['text']
-        evidence = f"Successfully transcribed video. Found {len(transcript.split())} words."
+        with open(output_txt_path, "w", encoding="utf-8") as f:
+            f.write(text)
         
-        return transcript, evidence
+        print(f"✅ Transcription saved to {output_txt_path}")
+        return text
+    
     except Exception as e:
-        return None, f"An error occurred during video processing: {e}"
+        print(f"❌ Error: {e}")
+        return None
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
 
-# This block allows you to test the file directly
-if __name__ == '__main__':
-    print("\n--- Running a quick test on the video analyzer ---")
-    
-    sample_video_path = "hackathonsubmission\WhatsApp Video 2025-10-04 at 14.40.09.mp4"
-    
-    transcript_text, evidence_text = transcribe_video(sample_video_path)
-    
-    if transcript_text:
-        print(f"\n✅ {evidence_text}")
-        print("\n--- Transcript ---")
-        print(transcript_text)
-    else:
-        print(f"\n❌ {evidence_text}")
+# Example
+if __name__ == "__main__":
+    video_file = "sample_presentation.mp4"
+    print(video_to_text(video_file))
