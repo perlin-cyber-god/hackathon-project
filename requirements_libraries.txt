@@ -1,44 +1,10 @@
-🚀 AI Hackathon Judge: Project Libraries & Modules
-This document provides a complete list of all the major technologies used to build the AI Hackathon Judge project.
-
-Core Libraries (External Packages)
-These are the external packages that must be installed via pip. They form the foundation of the project's AI and web capabilities.
-
-streamlit: The web framework used to create the beautiful, interactive "Cosmic" themed frontend (app.py).
-
-google-generativeai: The official library for connecting to the Google Gemini API. This is the core of all the "intelligent" features, like providing code reviews, suggestions, and scoring abstract concepts.
-
-transformers: A powerful library from Hugging Face that allows us to run open-source AI models locally for tasks like grammar correction, sentiment analysis, and AI-generated content detection.
-
-torch: The underlying deep learning framework that transformers uses to run its models on your computer's processor.
-
-moviepy: Used in the video_analyzer to easily extract the audio track from an uploaded .mp4 video file.
-
-SpeechRecognition: Takes the audio extracted by moviepy and transcribes it into text using Google's speech recognition service.
-
-pylint: The primary tool used by the code_analyzer for static analysis. It scans Python code for a wide range of errors, bad practices, and style issues.
-
-radon: Used by the code_analyzer to measure code metrics like Cyclomatic Complexity (how complex the logic is) and Maintainability Index.
-
-bandit: The security scanner used by the code_analyzer. It specifically looks for common security vulnerabilities in Python code, such as hardcoded passwords.
-
-diff-match-patch: A library used by the text_analyzer to compare the original text with the grammatically corrected text to identify and display the specific mistakes and fixes.
-
-Built-in Python Modules
-These modules are part of Python's standard library and do not need to be installed separately. They are essential for the project's operation.
-
-os: For interacting with the operating system, like creating folders and managing file paths.
-
-json: For reading and writing data in JSON format, which is how the API communicates.
-
-subprocess: Used to run command-line tools like pylint and git from within our Python script.
-
-re: Stands for "regular expressions," used for advanced text pattern matching to find docstrings and comments.
-
-ast: The "Abstract Syntax Tree" module, used to check for fundamental syntax errors in code.
-
-tempfile & shutil: For creating and managing the temporary files and folders needed to handle user uploads securely.
-
-datetime: For adding timestamps to the judge's reports.
-
-typing: For adding type hints (e.g., List, Dict) to make the code cleaner and easier to understand.
+streamlit
+google-generativeai
+transformers
+torch
+moviepy
+SpeechRecognition
+pylint
+radon
+bandit
+diff-match-patch
