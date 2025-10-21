@@ -1,4 +1,4 @@
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 import speech_recognition as sr
 import os
 
@@ -36,5 +36,23 @@ def video_to_text(video_path, output_txt_path=None):
 
 # Example
 if __name__ == "__main__":
-    video_file = "sample_presentation.mp4"
-    print(video_to_text(video_file))
+    # Define the path to video_sample folder
+    video_folder = os.path.join(os.path.dirname(__file__), "video_sample")
+    
+    # Check if the folder exists
+    if not os.path.exists(video_folder):
+        print(f"❌ Error: video_sample folder not found at {video_folder}")
+        exit(1)
+    
+    # Get all video files from the folder
+    video_files = [f for f in os.listdir(video_folder) if f.endswith(('.mp4', '.avi', '.mov'))]
+    
+    if not video_files:
+        print("❌ No video files found in video_sample folder")
+        exit(1)
+    
+    # Process each video file
+    for video_file in video_files:
+        video_path = os.path.join(video_folder, video_file)
+        print(f"\nProcessing video: {video_file}")
+        print(video_to_text(video_path))            
